@@ -71,7 +71,7 @@ doMirror ghUser auth repo@(SimpleRepo remoteU proj) prs = withSystemTempDirector
   gitClone (Just auth) (httpsUrlOfRepo repo) codedir
   tryE $ gitremoteAdd codedir (Just auth) upstreamRemote userGHUrl
   let handlePR = \pr ->
-        do prObj <- either (throwE . show) pure =<< liftIO (pullRequest remoteU proj (Id pr))
+        do prObj <- either (throwE . show) pure =<< liftIO (pullRequest' (Just auth) remoteU proj (Id pr))
            let dstBranchName = "pr" ++ show pr ++ "-dst"
                srcBranchName = "pr" ++ show pr ++ "-src"
                dstCommit = T.unpack (pullRequestCommitSha (pullRequestBase prObj))
