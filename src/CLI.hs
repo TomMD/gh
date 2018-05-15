@@ -90,11 +90,14 @@ parseMirror = PM <$> parseMirrorOptions <*> parseRepo
  where
  parseMirrorOptions :: Parser MirrorOptions
  parseMirrorOptions =
-    hsubparser
-              ( OP.command "open" (info (pure MirrorAllOpen) (progDesc "Mirror all open pull requests"))
-             <> OP.command "all"  (info (pure MirrorAll)     (progDesc "Mirror all pull requests"))
-             )
-    <|> argument ((MirrorOne . Id) <$> auto) (metavar "<pull request number>")
+    argument (eitherReader (A.parseOnly readMirror . T.pack))
+                          (metavar "<open|all|number>"
+                         <> help "Mirror open pull requests, all pull requests, or a specific one.")
+ readMirror :: A.Parser MirrorOptions
+ readMirror
+    =   (A.string "open" >>= \_ -> pure MirrorAllOpen)
+    <|> (A.string "all" >>= \_ -> pure MirrorAll)
+    <|> ((MirrorOne . Id) <$> A.decimal)
 
 getOptions :: IO Options
 getOptions =
