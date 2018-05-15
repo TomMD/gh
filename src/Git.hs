@@ -18,6 +18,10 @@ gitAM codedir patch =
     liftIO $ BS.writeFile patchFile patch
     safeProcess_ "git" ["-C", codedir, "am", patchFile] "" id
 
+gitAMabort :: FilePath -> ExceptT Err IO ()
+gitAMabort codedir =
+    safeProcess_ "git" ["-C", codedir, "am", "--abort"] "" id
+
 gitPushu:: FilePath -> String -> String -> ExceptT Err IO ()
 gitPushu codedir remote branch =
  do safeProcess_ "git" ["-C", codedir, "push", "-u", remote, branch] "" id

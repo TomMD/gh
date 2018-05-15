@@ -6,14 +6,13 @@ import Data.ByteString (ByteString)
 import Control.Monad
 import Control.Monad.Trans.Except
 import Control.Monad.IO.Class
-import GitHub.Data.PullRequests
-import GitHub.Data.Id
 import GitHub.Data.Name
 import GitHub hiding (command)
 import System.Exit
 
 type Err = String
 type GitHubUser = String
+type PullRequestNumber = Int
 
 data Options =
     Opts { githubToken :: ByteString
@@ -25,14 +24,14 @@ data Command
         = Fork SimpleRepo
         | Pull Pull
 
-data Pull = PRInfo SimpleRepo (Id PullRequest)
+data Pull = PRInfo SimpleRepo PullRequestNumber
           | PRMirror PullMirror
 
 data PullMirror = PM MirrorOptions SimpleRepo
 
 data SimpleRepo = SimpleRepo (Name Owner) (Name Repo)
 
-data MirrorOptions = MirrorOne (Id PullRequest)
+data MirrorOptions = MirrorOne PullRequestNumber
                    | MirrorAllOpen
                    | MirrorAll
 

@@ -9,9 +9,7 @@ import Data.String
 import qualified Data.Attoparsec.Text as A
 import Data.Semigroup ((<>))
 import Options.Applicative as OP
-import GitHub.Data.PullRequests
 import GitHub.Data.Name
-import GitHub.Data.Id
 import System.Environment
 
 
@@ -69,21 +67,21 @@ parsePull =
  prGetDesc = "Get the latest comment from an existing pull request"
  prMirrorDesc = "Mirror one or more pull requests from a repository into an identically named repo under your user."
 
-parsePR :: Parser (SimpleRepo,Id PullRequest)
+parsePR :: Parser (SimpleRepo,PullRequestNumber)
 parsePR  =
     argument (eitherReader (A.parseOnly pPR . T.pack))
                 ( metavar "<username/repo:pullRequestNumber>"
                <> help "Specify the pull request, ex 'glguy/irc-core:6'"
                 )
   where
-  pPR :: A.Parser (SimpleRepo,Id PullRequest)
+  pPR :: A.Parser (SimpleRepo,PullRequestNumber)
   pPR = do
     user <- A.takeWhile (/= '/')
     _ <- A.char '/'
     repo <- A.takeWhile (/= ':')
     _ <- A.char ':'
     number <- A.decimal
-    pure (SimpleRepo (N user) (N repo), Id number)
+    pure (SimpleRepo (N user) (N repo), number)
 
 parseMirror :: Parser PullMirror
 parseMirror = PM <$> parseMirrorOptions <*> parseRepo
@@ -97,7 +95,7 @@ parseMirror = PM <$> parseMirrorOptions <*> parseRepo
  readMirror
     =   (A.string "open" >>= \_ -> pure MirrorAllOpen)
     <|> (A.string "all" >>= \_ -> pure MirrorAll)
-    <|> ((MirrorOne . Id) <$> A.decimal)
+    <|> (MirrorOne <$> A.decimal)
 
 getOptions :: IO Options
 getOptions =
