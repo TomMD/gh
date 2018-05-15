@@ -82,7 +82,7 @@ doMirror ghUser auth repo@(SimpleRepo remoteU proj) prs = withSystemTempDirector
            tryE $ gitPushu codedir upstreamRemote dstBranchName
            gitCheckout codedir srcBranchName
            patchBytes <- liftIO $ getPatch auth repo (Id pr)
-           catchE (gitAM codedir patchBytes) (\r -> gitAMabort codedir >> throwE r)
+           catchE (gitAM codedir patchBytes) (\_ -> gitAMabort codedir >> throwE "'git am' failed. Patch likely does not apply cleanly")
            tryE $ gitPushu codedir upstreamRemote srcBranchName
            --  Now for step 6
            let title = "Mirror of " <> untagName remoteU <> " " <> untagName proj <> "#" <> T.pack (show pr)
