@@ -18,9 +18,9 @@ gitAM codedir patch =
     liftIO $ BS.writeFile patchFile patch
     safeProcess_ "git" ["-C", codedir, "am", patchFile] "" id
 
-gitPushu:: FilePath -> ExceptT Err IO ()
-gitPushu codedir =
- do safeProcess_ "git" ["-C", codedir, "push", "-u"] "" id
+gitPushu:: FilePath -> String -> String -> ExceptT Err IO ()
+gitPushu codedir remote branch =
+ do safeProcess_ "git" ["-C", codedir, "push", "-u", remote, branch] "" id
 
 gitClone :: Maybe Auth -> String -> FilePath -> ExceptT Err IO ()
 gitClone mtok url dir =

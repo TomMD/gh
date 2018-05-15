@@ -4,7 +4,6 @@ module Main where
 
 import Control.Monad.Trans.Except
 import Control.Monad.IO.Class
-import Control.Monad (void)
 import Data.Foldable
 import qualified Data.Text as T
 import OpenSSL
@@ -36,15 +35,15 @@ doFork :: SimpleRepo -> Request 'RW Repo
 doFork (SimpleRepo user proj) = forkExistingRepoR user proj Nothing
 
 doPull :: GitHubUser -> Auth -> Pull -> IO ()
-doPull _ghUser auth (PRInfo (SimpleRepo user project) issueid) =
- do evec <- executeRequest auth $ pullRequestCommentsR user project issueid FetchAll
+doPull _ghUser _auth (PRInfo (SimpleRepo user project) issueid) =
+ do evec <- executeRequest' $ pullRequestCommentsR user project issueid FetchAll
     case evec of
         Left err -> error (show err)
         Right vec ->
             print vec -- XXX
 doPull ghUser auth (PRMirror (PM mopt repo)) =
     case mopt of
-        MirrorOne issueid -> void $ doMirror ghUser auth repo issueid
+        MirrorOne issueid -> either error pure =<< doMirror ghUser auth repo issueid
         MirrorAll         ->
                traverse_ (doMirror ghUser auth repo) =<< getOpenPulls repo
         MirrorAllOpen     ->
@@ -66,18 +65,19 @@ doMirror ghUser auth repo@(SimpleRepo remoteU proj) pr = withSystemTempDirectory
       srcBranchName = "pr" ++ show (untagId pr) ++ "-src"
       dstCommit = T.unpack (pullRequestCommitSha (pullRequestBase prObj))
       originalBody = maybe "" id (pullRequestBody prObj) :: T.Text
+      upstreamRemote = ghUser
   gitClone (Just auth) (httpsUrlOfRepo repo) codedir
   gitbranchNewTip codedir dstBranchName dstCommit
   gitbranchNewTip codedir srcBranchName dstCommit
   gitCheckout codedir dstBranchName
-  gitPushu codedir
+  gitremoteAdd codedir (Just auth) upstreamRemote userGHUrl
+  gitPushu codedir upstreamRemote dstBranchName
   gitCheckout codedir srcBranchName
   patchBytes <- liftIO $ getPatch auth repo pr
   gitAM codedir patchBytes
-  gitremoteAdd codedir (Just auth) ghUser userGHUrl
-  gitPushu codedir
+  gitPushu codedir upstreamRemote srcBranchName
   --  Now for step 6
-  let title = "Mirror of " <> untagName remoteU <> "/" <> untagName proj <> "#" <> T.pack (show (untagId pr))
+  let title = "Mirror of " <> untagName remoteU <> " " <> untagName proj <> "#" <> T.pack (show (untagId pr))
       cpr = CreatePullRequest title
                               (T.unlines [title, originalBody])
                               (T.pack srcBranchName)
