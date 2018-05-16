@@ -75,7 +75,7 @@ doMirror ghUser auth repo@(SimpleRepo remoteU proj) prs = withSystemTempDirector
            let dstBranchName = "pr" ++ show pr ++ "-dst"
                srcBranchName = "pr" ++ show pr ++ "-src"
                dstCommit = T.unpack (pullRequestCommitSha (pullRequestBase prObj))
-               originalBody = maybe "" id (pullRequestBody prObj) :: T.Text
+               originalBody = maybe "" filterNotifications (pullRequestBody prObj) :: T.Text
            gitbranchNewTip codedir dstBranchName dstCommit
            gitbranchNewTip codedir srcBranchName dstCommit
            gitCheckout codedir dstBranchName
@@ -97,6 +97,10 @@ doMirror ghUser auth repo@(SimpleRepo remoteU proj) prs = withSystemTempDirector
            (\r -> liftIO $ putStrLn $ "--- --- ---\nFailed to mirror pull request: " <> show pr <> "\n" <> r)
  where
  userGHUrl = "https://github.com/" <> ghUser <> "/" <> T.unpack (untagName proj)
+
+filterNotifications :: T.Text -> T.Text
+filterNotifications x | T.take 1 x == "@" = T.replace " @" " " (T.drop 1 x)
+                      | otherwise         = T.replace " @" " " x
 
 getAllPulls :: SimpleRepo -> IO (Vector PullRequestNumber)
 getAllPulls sr =
