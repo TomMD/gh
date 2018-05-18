@@ -99,8 +99,8 @@ doMirror ghUser auth repo@(SimpleRepo remoteU proj) prs = withSystemTempDirector
  userGHUrl = "https://github.com/" <> ghUser <> "/" <> T.unpack (untagName proj)
 
 filterNotifications :: T.Text -> T.Text
-filterNotifications x | T.take 1 x == "@" = T.replace " @" " " (T.drop 1 x)
-                      | otherwise         = T.replace " @" " " x
+filterNotifications x | T.take 1 x == "@" = T.replace "@" "<at>" (T.drop 1 x)
+                      | otherwise         = T.replace "@" "<at>" x
 
 getAllPulls :: SimpleRepo -> IO (Vector PullRequestNumber)
 getAllPulls sr =
