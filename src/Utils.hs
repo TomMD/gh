@@ -23,6 +23,10 @@ data Options =
 data Command
         = Fork SimpleRepo
         | Pull Pull
+        | WebHook WebHook
+
+data WebHook = WHAdd SimpleRepo NewRepoWebhook
+             | WHRm  SimpleRepo
 
 data Pull = PRInfo SimpleRepo PullRequestNumber
           | PRMirror PullMirror

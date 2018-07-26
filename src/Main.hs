@@ -1,10 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE OverloadedLists   #-}
+{-# LANGUAGE DataKinds         #-}
 module Main where
 
 import Control.Monad.Trans.Except
 import Control.Monad.IO.Class
+import Control.Monad (void)
 import Data.Foldable
 import qualified Data.Text as T
 import OpenSSL
@@ -27,7 +28,8 @@ main :: IO ()
 main = withOpenSSL $ do
   opts <- getOptions
   let auth = OAuth (githubToken opts)
-  case (ghCommand opts) of
+  case ghCommand opts of
+    WebHook wh -> doWebHook auth wh
     Pull pr -> doPull (githubUser opts) auth pr
     Fork f  ->
        do eres <- executeRequest auth $ doFork f
@@ -37,6 +39,17 @@ main = withOpenSSL $ do
 
 doFork :: SimpleRepo -> Request 'RW Repo
 doFork (SimpleRepo user proj) = forkExistingRepoR user proj Nothing
+
+doWebHook :: Auth -> WebHook -> IO ()
+doWebHook auth (WHAdd (SimpleRepo user project) nrwh) =
+  void $ executeRequest auth $ createRepoWebhookR user project nrwh
+doWebHook auth (WHRm (SimpleRepo user project)) =
+  do ehs <- executeRequest auth $ webhooksForR user project 1000
+     let del :: RepoWebhook -> Request 'RW ()
+         del = deleteRepoWebhookR user project . repoWebhookId
+     case ehs of
+        Left e   -> error (show e)
+        Right hs -> for_ hs (void . executeRequest auth . del)
 
 doPull :: GitHubUser -> Auth -> Pull -> IO ()
 doPull _ghUser _auth (PRInfo (SimpleRepo user project) issueid) =

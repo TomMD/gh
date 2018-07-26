@@ -1,15 +1,18 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedLists   #-}
 module CLI (getOptions) where
 
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.ByteString.Base16 as B16
 import qualified Data.Text as T
+import Data.Char (isSpace)
 import Data.String
 import qualified Data.Attoparsec.Text as A
 import Data.Semigroup ((<>))
 import Options.Applicative as OP
 import GitHub.Data.Name
+import GitHub.Data.Webhooks
 import System.Environment
 
 
@@ -35,10 +38,12 @@ options =
                 )
         <*> hsubparser ( OP.command "fork" (info (Fork <$> parseRepo) (progDesc forkDesc))
                       <> OP.command "pull" (info (Pull <$> parsePull) (progDesc pullDesc))
+                      <> OP.command "webhook" (info (WebHook <$> parseHook) (progDesc hookDesc))
                        )
   where
   forkDesc = "Fork a repository"
   pullDesc = "Create, query, or mirror a pull request"
+  hookDesc = "Create a web hook for a repository"
   eitherReadHex s =
     case B16.decode (fromString s) of
         (m,_) | B.length m > 0 -> Right m
@@ -67,7 +72,46 @@ parsePull =
  prGetDesc = "Get the latest comment from an existing pull request"
  prMirrorDesc = "Mirror one or more pull requests from a repository into an identically named repo under your user."
 
-parsePR :: Parser (SimpleRepo,PullRequestNumber)
+parseHook :: Parser WebHook
+parseHook =
+    hsubparser ( OP.command "add" (info (uncurry WHAdd <$> parseAdd) (progDesc whAddDesc))
+              <> OP.command "rm"  (info (WHRm <$> parseRm) (progDesc whRmDesc))
+               )
+  where
+  whAddDesc = "Add webhooks to a given repository pointing to a given URL"
+  whRmDesc = "Remove webhooks from a given repository"
+  parseAdd :: Parser (SimpleRepo,NewRepoWebhook)
+  parseAdd = argument (eitherReader (A.parseOnly pAdd . T.pack))
+                      ( metavar "<username/repo:URL>"
+                     <> help "Specify the repository and webhook url"
+                      )
+  pAdd :: A.Parser (SimpleRepo,NewRepoWebhook)
+  pAdd = do
+    repo <- pSimpleRepo
+    _ <- A.char ':'
+    url <- A.takeText
+    let events = [WebhookIssueCommentEvent, WebhookIssuesEvent,WebhookPingEvent,WebhookPullRequestEvent,WebhookPushEvent]
+        whoptions = [("url",url)
+                    ,("content_type","json")
+                    {- , N.B. no secret! -}]
+        nrwh = NewRepoWebhook "web"
+                              whoptions
+                              (Just events)
+                              (Just True)
+    pure (repo, nrwh)
+  parseRm :: Parser SimpleRepo
+  parseRm = argument (eitherReader (A.parseOnly pSimpleRepo . T.pack))
+                     ( metavar "<username/repo>"
+                    <> help "Specify the repository. Removes all webhooks."
+                     )
+  pSimpleRepo :: A.Parser SimpleRepo
+  pSimpleRepo = do
+    user <- A.takeWhile (/= '/')
+    _ <- A.char '/'
+    repo <- A.takeWhile (\x -> x /= ':' && not (isSpace x))
+    pure (SimpleRepo (N user) (N repo))
+
+parsePR :: Parser (SimpleRepo, PullRequestNumber)
 parsePR  =
     argument (eitherReader (A.parseOnly pPR . T.pack))
                 ( metavar "<username/repo:pullRequestNumber>"
