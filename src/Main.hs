@@ -19,6 +19,8 @@ import qualified GitHub.Endpoints.Issues.Comments as Issues
 import GHC.Exts as E
 import System.FilePath
 import System.IO.Temp
+import System.IO (hPutStrLn, stderr)
+import System.Exit (exitFailure)
 
 import Git
 import Utils
@@ -42,13 +44,16 @@ doFork (SimpleRepo user proj) = forkExistingRepoR user proj Nothing
 
 doWebHook :: Auth -> WebHook -> IO ()
 doWebHook auth (WHAdd (SimpleRepo user project) nrwh) =
-  void $ executeRequest auth $ createRepoWebhookR user project nrwh
+  do e <- executeRequest auth $ createRepoWebhookR user project nrwh
+     case e of
+        Left err -> die err
+        Right _  -> pure ()
 doWebHook auth (WHRm (SimpleRepo user project)) =
   do ehs <- executeRequest auth $ webhooksForR user project 1000
      let del :: RepoWebhook -> Request 'RW ()
          del = deleteRepoWebhookR user project . repoWebhookId
      case ehs of
-        Left e   -> error (show e)
+        Left e   -> die e
         Right hs -> for_ hs (void . executeRequest auth . del)
 
 doPull :: GitHubUser -> Auth -> Pull -> IO ()
@@ -69,7 +74,7 @@ doPull ghUser auth (PRMirror (PM mopt repo)) =
     either error pure r
 doPull _ghUser auth (PRClose (SimpleRepo user project) issueid) =
   do let epr = EditPullRequest Nothing Nothing (Just StateClosed) Nothing Nothing
-     _ <- either (putStrLn . show) (const (pure ())) =<< updatePullRequest auth user project (Id issueid) epr
+     _ <- either die (const (pure ())) =<< updatePullRequest auth user project (Id issueid) epr
      pure ()
 
 -- Mirror a pull request into the project under the given user name
@@ -107,7 +112,8 @@ doMirror ghUser auth repo@(SimpleRepo remoteU proj) prs = withSystemTempDirector
                                        (T.unlines [title, originalBody])
                                        (T.pack srcBranchName)
                                        (T.pack dstBranchName)
-           _ <- either (throwE . show) pure =<< liftIO (createPullRequest auth (N $ fromString ghUser) proj cpr)
+           prRes <- either (throwE . show) pure =<< liftIO (createPullRequest auth (N $ fromString ghUser) proj cpr)
+           liftIO $ putStrLn (show (pullRequestNumber prRes))
            pure ()
   for_ prs $ \pr ->
     catchE (handlePR pr)
@@ -141,3 +147,6 @@ pPrintComment ic =
                        ]
  where
  ut = T.unpack . untagName
+
+die :: Show a => a -> IO x
+die e = hPutStrLn stderr (show e) >> exitFailure
