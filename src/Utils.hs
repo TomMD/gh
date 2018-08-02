@@ -29,6 +29,7 @@ data WebHook = WHAdd SimpleRepo NewRepoWebhook
              | WHRm  SimpleRepo
 
 data Pull = PRInfo SimpleRepo PullRequestNumber
+          | PRClose SimpleRepo PullRequestNumber
           | PRMirror PullMirror
 
 data PullMirror = PM MirrorOptions SimpleRepo

@@ -67,9 +67,11 @@ parsePull :: Parser Pull
 parsePull =
     hsubparser ( OP.command "get"    (info (uncurry PRInfo <$> parsePR) (progDesc prGetDesc))
               <> OP.command "mirror" (info (PRMirror <$> parseMirror) (progDesc prMirrorDesc))
+              <> OP.command "close"  (info (uncurry PRClose <$> parsePR) (progDesc prCloseDesc))
                )
  where
  prGetDesc = "Get the latest comment from an existing pull request"
+ prCloseDesc = "Close the specified pull request"
  prMirrorDesc = "Mirror one or more pull requests from a repository into an identically named repo under your user."
 
 parseHook :: Parser WebHook

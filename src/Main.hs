@@ -67,6 +67,10 @@ doPull ghUser auth (PRMirror (PM mopt repo)) =
             MirrorAllOpen     ->
                   doMirror ghUser auth repo =<< getOpenPulls repo
     either error pure r
+doPull _ghUser auth (PRClose (SimpleRepo user project) issueid) =
+  do let epr = EditPullRequest Nothing Nothing (Just StateClosed) Nothing Nothing
+     _ <- either (putStrLn . show) (const (pure ())) =<< updatePullRequest auth user project (Id issueid) epr
+     pure ()
 
 -- Mirror a pull request into the project under the given user name
 doMirror :: GitHubUser -> Auth -> SimpleRepo -> Vector PullRequestNumber -> IO (Either String ())
@@ -95,7 +99,7 @@ doMirror ghUser auth repo@(SimpleRepo remoteU proj) prs = withSystemTempDirector
            tryE $ gitPushu codedir upstreamRemote dstBranchName
            gitCheckout codedir srcBranchName
            patchBytes <- liftIO $ getPatch auth repo (Id pr)
-           catchE (gitAM codedir patchBytes) (\_ -> gitAMabort codedir >> throwE "'git am' failed. Patch likely does not apply cleanly")
+           catchE (gitAM codedir patchBytes) (\e -> gitAMabort codedir >> throwE ("'git am' failed. Patch likely does not apply cleanly: " ++ show e))
            tryE $ gitPushu codedir upstreamRemote srcBranchName
            --  Now for step 6
            let title = "Mirror of " <> untagName remoteU <> " " <> untagName proj <> "#" <> T.pack (show pr)
