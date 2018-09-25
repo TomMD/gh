@@ -2,9 +2,7 @@
 {-# LANGUAGE OverloadedLists   #-}
 module CLI (getOptions) where
 
-import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
-import qualified Data.ByteString.Base16 as B16
 import qualified Data.Text as T
 import Data.Char (isSpace)
 import Data.String
@@ -44,10 +42,7 @@ options =
   forkDesc = "Fork a repository"
   pullDesc = "Create, query, or mirror a pull request"
   hookDesc = "Create a web hook for a repository"
-  eitherReadHex s =
-    case B16.decode (fromString s) of
-        (m,_) | B.length m > 0 -> Right m
-        _ -> Left $ "Invalid authentication token: " ++ show s
+  eitherReadHex = Right . fromString
 
 parseRepo :: Parser SimpleRepo
 parseRepo =
