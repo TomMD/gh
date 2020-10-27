@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE OverloadedLists   #-}
 {-# LANGUAGE DataKinds         #-}
 module Main where
@@ -90,8 +91,8 @@ doMirror ghUser auth repo@(SimpleRepo remoteU proj) prs = withSystemTempDirector
   tryE $ gitremoteAdd codedir (Just auth) upstreamRemote userGHUrl
   let handlePR = \pr ->
         do prObj <- either (throwE . show) pure =<< liftIO (github auth $ pullRequestR remoteU proj pr)
-           let dstBranchName = "pr" ++ show pr ++ "-dst"
-               srcBranchName = "pr" ++ show pr ++ "-src"
+           let dstBranchName = "pr" ++ show (coerce @_ @Int pr) ++ "-dst"
+               srcBranchName = "pr" ++ show (coerce @_ @Int pr) ++ "-src"
                dstCommit = T.unpack (pullRequestCommitSha (pullRequestBase prObj))
                originalBody = maybe "" filterNotifications (pullRequestBody prObj) :: T.Text
            gitbranchNewTip codedir dstBranchName dstCommit
