@@ -7,7 +7,6 @@ import qualified Data.Text as T
 import Data.Char (isSpace)
 import Data.String
 import qualified Data.Attoparsec.Text as A
-import Data.Semigroup ((<>))
 import Options.Applicative as OP
 import GitHub.Data.Name
 import GitHub.Data.Webhooks

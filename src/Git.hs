@@ -1,5 +1,6 @@
 module Git where
 
+
 import GitHub.Endpoints.PullRequests
 import qualified GitHub as GH
 import Control.Monad.Trans.Except
@@ -49,12 +50,12 @@ gitbranchNewTip :: FilePath -> String -> String -> ExceptT Err IO ()
 gitbranchNewTip codedir branch commit =
     safeProcess_ "git" ["-C", codedir, "branch", "-f", branch, commit] "" id
 
-getPatch :: GH.Auth -> SimpleRepo -> Id PullRequest -> IO ByteString
+getPatch :: GH.Auth -> SimpleRepo -> IssueNumber -> IO ByteString
 getPatch auth sr pr = either error pure =<< runExceptT (getPatchE auth sr pr)
 
-getPatchE :: GH.Auth -> SimpleRepo -> Id PullRequest -> ExceptT Err IO ByteString
+getPatchE :: GH.Auth -> SimpleRepo -> IssueNumber -> ExceptT Err IO ByteString
 getPatchE jwtauth (SimpleRepo owner repo) issue =
-  do res <- liftIO $ pullRequestPatch' (Just jwtauth) owner repo issue
+  do res <- liftIO $ GH.github jwtauth $ GH.pullRequestPatchR owner repo issue
      case res of
          Left e -> throwE ("Error getting diff patch: " <> show e)
          Right x -> pure (BSL.toStrict x)

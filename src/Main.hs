@@ -8,12 +8,9 @@ import Control.Monad.IO.Class
 import Control.Monad (void)
 import Data.Foldable
 import qualified Data.Text as T
-import OpenSSL
 import GitHub hiding (command)
 import GitHub.Data.Name
-import GitHub.Data.Id
 import GitHub.Endpoints.Repos
-import GitHub.Endpoints.PullRequests
 import GitHub.Internal.Prelude (Vector)
 import qualified GitHub.Endpoints.Issues.Comments as Issues
 import GHC.Exts as E
@@ -27,7 +24,7 @@ import Utils
 import CLI
 
 main :: IO ()
-main = withOpenSSL $ do
+main = GitHub.withOpenSSL $ do
   opts <- getOptions
   let auth = OAuth (githubToken opts)
   case ghCommand opts of
@@ -50,15 +47,14 @@ doWebHook auth (WHAdd (SimpleRepo user project) nrwh) =
         Right _  -> pure ()
 doWebHook auth (WHRm (SimpleRepo user project)) =
   do ehs <- executeRequest auth $ webhooksForR user project 1000
-     let del :: RepoWebhook -> Request 'RW ()
-         del = deleteRepoWebhookR user project . repoWebhookId
+     let del = deleteRepoWebhookR user project . repoWebhookId
      case ehs of
         Left e   -> die e
         Right hs -> for_ hs (void . executeRequest auth . del)
 
 doPull :: GitHubUser -> Auth -> Pull -> IO ()
 doPull _ghUser _auth (PRInfo (SimpleRepo user project) issueid) =
- do evec <- Issues.comments user project (Id issueid)
+ do evec <- github () $ Issues.commentsR user project (coerce issueid) FetchAll
     case evec of
         Left err -> error (show err)
         Right vec ->
@@ -74,7 +70,7 @@ doPull ghUser auth (PRMirror (PM mopt repo)) =
     either error pure r
 doPull _ghUser auth (PRClose (SimpleRepo user project) issueid) =
   do let epr = EditPullRequest Nothing Nothing (Just StateClosed) Nothing Nothing
-     _ <- either die (const (pure ())) =<< updatePullRequest auth user project (Id issueid) epr
+     _ <- either die (const (pure ())) =<< github auth (updatePullRequestR user project (coerce issueid) epr)
      pure ()
 
 -- Mirror a pull request into the project under the given user name
@@ -93,7 +89,7 @@ doMirror ghUser auth repo@(SimpleRepo remoteU proj) prs = withSystemTempDirector
   gitClone (Just auth) (httpsUrlOfRepo repo) codedir
   tryE $ gitremoteAdd codedir (Just auth) upstreamRemote userGHUrl
   let handlePR = \pr ->
-        do prObj <- either (throwE . show) pure =<< liftIO (pullRequest' (Just auth) remoteU proj (Id pr))
+        do prObj <- either (throwE . show) pure =<< liftIO (github auth $ pullRequestR remoteU proj pr)
            let dstBranchName = "pr" ++ show pr ++ "-dst"
                srcBranchName = "pr" ++ show pr ++ "-src"
                dstCommit = T.unpack (pullRequestCommitSha (pullRequestBase prObj))
@@ -103,20 +99,21 @@ doMirror ghUser auth repo@(SimpleRepo remoteU proj) prs = withSystemTempDirector
            gitCheckout codedir dstBranchName
            tryE $ gitPushu codedir upstreamRemote dstBranchName
            gitCheckout codedir srcBranchName
-           patchBytes <- liftIO $ getPatch auth repo (Id pr)
+           patchBytes <- liftIO $ getPatch auth repo pr
            catchE (gitAM codedir patchBytes) (\e -> gitAMabort codedir >> throwE ("'git am' failed. Patch likely does not apply cleanly: " ++ show e))
            tryE $ gitPushu codedir upstreamRemote srcBranchName
            --  Now for step 6
-           let title = "Mirror of " <> untagName remoteU <> " " <> untagName proj <> "#" <> T.pack (show pr)
+           let title = "Mirror of " <> untagName remoteU <> " " <> untagName proj <> " PR " <> T.pack (show pr)
+               msg = T.filter (\x -> not (x == '@' || x == '#')) (T.unlines [title, originalBody])
                cpr = CreatePullRequest title
-                                       (T.unlines [title, originalBody])
+                                       msg
                                        (T.pack srcBranchName)
                                        (T.pack dstBranchName)
-           prRes <- either (throwE . show) pure =<< liftIO (createPullRequest auth (N $ fromString ghUser) proj cpr)
+           prRes <- either (throwE . show) pure =<< liftIO (github auth $ createPullRequestR (N $ fromString ghUser) proj cpr)
            liftIO $ putStrLn (show (pullRequestNumber prRes))
            pure ()
   for_ prs $ \pr ->
-    catchE (handlePR pr)
+    catchE (handlePR (coerce pr))
            (\r -> liftIO $ putStrLn $ "--- --- ---\nFailed to mirror pull request: " <> show pr <> "\n" <> r)
  where
  userGHUrl = "https://github.com/" <> ghUser <> "/" <> T.unpack (untagName proj)
@@ -126,15 +123,15 @@ filterNotifications x = T.replace "@" "<at>" x
 
 getAllPulls :: SimpleRepo -> IO (Vector PullRequestNumber)
 getAllPulls sr =
-    fmap simplePullRequestNumber <$> getSimplePullRequest sr
+    fmap (coerce . simplePullRequestNumber) <$> getSimplePullRequest sr
 
 getSimplePullRequest :: SimpleRepo -> IO (Vector SimplePullRequest)
-getSimplePullRequest (SimpleRepo u p) = either (error . show) id <$> pullRequestsFor u p
+getSimplePullRequest (SimpleRepo u p) = either (error . show) id <$> github () (pullRequestsForR u p mempty FetchAll)
 -- XXX need a get all pull requeset command, this doesn't do that.
 
 getOpenPulls :: SimpleRepo -> IO (Vector PullRequestNumber)
 getOpenPulls sr =
-    fmap simplePullRequestNumber <$> getSimplePullRequest sr
+    fmap (coerce . simplePullRequestNumber) <$> getSimplePullRequest sr
 
 httpsUrlOfRepo :: SimpleRepo -> String
 httpsUrlOfRepo (SimpleRepo u p) = "https://github.com/" <> T.unpack (untagName u) <> "/" <> T.unpack (untagName p)
